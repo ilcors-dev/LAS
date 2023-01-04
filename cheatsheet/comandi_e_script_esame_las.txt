@@ -1,0 +1,392 @@
+1. VAGRANT:
+
+1.1 Creazione nuova VM:
+    1) creare nuova cartella
+    2) spostarsi nella cartella
+    3) vagrant init las/bullseye64
+
+1.2 Creazione nuova interfaccia di rete della VM:
+    1) aprire Vagrantfile
+    2) config.vm.network "private_network", virtualbox__intnet: "LAN1", auto_config: false
+
+1.3 Condividere memoria tra VM:
+    1) aprire Vagrantfile
+    2) inserire la direttiva:
+        config.vm.provider "virtualbox" do |vb|
+            vb.linked_clone = true
+        end
+
+1.4 Inserire provisioning di Ansible:
+    1) inserire o decommentare nel Vagrantfile:
+        config.vm.provision "ansible" do |ansible|
+            ansible.playbook = "playbook.yml"
+        end
+    2) le automazioni di Ansible andranno inserite nel file "playbook.yml",
+       che si trova nella stessa directory del Vagrantfile 
+             
+
+2. CONFIGURAZIONE DI RETE:
+
+2.1 Rendere persistente configurazione di rete di una VM CLIENT:
+    1) andare nel file /etc/network/interfaces con privilegi di root
+    2) inserire:
+        auto eth1
+        iface eth1 inet static #metto static se voglio un indirizzo statico
+            address <indirizzo-IP>
+            netmask <maschera-di-rete>
+            up /usr/sbin/ip route add <indirizzo-server>/24 via <indirizzo-router>
+
+2.2 Rendere persistente configurazione rete di una VM ROUTER:
+    1) nel Vagrantfile devo creare due nuove interfacce di rete
+    2) nel file /etc/network/interfaces inserisco:
+        #prima interfaccia di rete        
+        auto eth1
+        iface eth1 inet static
+            address <indirizzo-IP>
+            netmask <netmask> #solitamente 255.255.255.0
+        
+        #seconda interfaccia di rete
+        auto eth2
+        iface eth2 inet static
+            address <indirizzo-IP>
+            netmask <netmask>
+    3) nel file /etc/sysctl.conf decommentare la riga:
+        net.ipv4.ip_forward=1
+    4) applicare le modifiche con:
+        sysctl -p
+
+2.3 Rendere persistente configurazione di rete di una VM SERVER:
+    1) nel file /etc/network/interfaces:
+        auto eth1
+        iface eth1 inet static
+            address <indirizzo-IP>
+            netmask <netmask>
+            up /usr/sbin/ip route add <indirizzo-client>/24 via <indirizzo-router>
+
+2.4 Configurazione router DHCP:
+    1) preliminare: avere installato dnsmasq
+                    e inserito una nuova interfaccia di rete nel Vagrantfile
+    2) inserire nel file /etc/dnsmasq.conf:
+        interface=eth1
+        dhcp-range=<estremo-inferiore>,<estremo-superiore>, 12h
+        dhcp-option=3 #prende come gateway quello di virtualbox
+        dhcp-option=option:ntp-server,<indirizzo-server-ntp>
+        dhcp-option=option:dns-server,<indirizzo-server-dns>
+        dhcp-option=121,<range-indirizzi-client(o-server)*>/24,<indirizzo-router-che-fa-dhcp-visibile-a-macchine-per-dhcp>
+        * se e' il ruoter che fa da dhcp ai client, allora ci va il range del server, altrimenti il contrario
+
+
+2.5 Configurazione client DHCP:
+    1) preliminare: aver inserito una nuova iterfaccia di rete nel Vagrantfile
+    2) inserire in /etc/network/interfaces:
+        auto eth1        
+        iface eth1 inet dhcp
+
+2.6 Configurare un DHCP costituito da un router e due client su due subnet diverse:
+    1) setto nel router le due interfacce per la comunicazione con i client:
+        #comunicazione con C1        
+        auto eth1
+        iface eth1 inet static
+            address <indirizzo-router-1>
+            netmask <netmask>
+        #comunicazione con C2
+        auto eth2
+        iface eth2 inet static
+            address <indirizzo-router-2>
+            netmask <netmask>
+    2) in /etc/sysctl.conf:
+        net.ipv4.ip_forward=1
+    3) applicare le modifiche con:
+        sysctl -p
+    4) modifico /etc/dnsmasq.conf per avere un router DHCP che funziona su due subnet:
+        #dhcp per la prima subnet, per C1       
+        interface=eth1
+        dhcp-range=<estremo-inferiore>,<estremo-superiore>, 12h
+        dhcp-option=3 #prende come gateway quello di virtualbox
+        dhcp-option=option:ntp-server,<indirizzo-server-ntp>
+        dhcp-option=option:dns-server,<indirizzo-server-dns>
+        dhcp-option=121,<indirizzo-client-2>/24,<indirizzo-router-1> #consegna a C1 la rotta per C2
+        #dhcp per la seconda subnet, per C2
+        interface=eth2
+        dhcp-range=<estremo-inferiore>,<estremo-superiore>, 12h
+        dhcp-option=3 #prende come gateway quello di virtualbox
+        dhcp-option=option:ntp-server,<indirizzo-server-ntp>
+        dhcp-option=option:dns-server,<indirizzo-server-dns>
+        dhcp-option=121,<indirizzo-client-1>/24,<indirizzo-router-2> #consegna a C2 la rotta per C1
+    5) nei client metto l'IP ottenuto con DHCP
+       inserisco in /etc/network/interfaces di C1:
+        auto eth1        
+        iface eth1 inet dhcp
+       inserisco in /etc/network/interfaces di C2:
+        auto eth1        
+        iface eth1 inet dhcp
+
+2.7 Associare ad una interfaccia di rete un IP in maniera non persistente:
+    1) ifconfig <nome-interfaccia> <indirizzo-IP>
+
+2.8 Rimuovere ad una interfaccia di rete un IP:
+    1) ifconfig 
+
+
+3. ANSIBLE
+
+3.1 Impostazione preliminare:
+    1) il file "playbook.yml" deve iniziare con:
+        - hosts: all
+          become: yes
+          tasks:
+    2) poi inserisco i vari tasks
+
+3.2 Inserire un nuovo task:
+    1) andare nel file "playbook.yml" ed inserire:
+        - name: <nome-del-task>
+          <nome-componente-ansible>:
+            <parametro-1>: <valore-1>
+            ...
+            <parametro-n>: <valore-n>
+
+3.3 Aggiungere un nuovo utente:
+    1) aggiungere ai task:
+        - name: "Add the user 'johnd'"
+          ansible.builtin.user:
+            name: johnd
+            comment: John Doe
+
+3.4 Installare uno script:
+    1) inserire in "playbook.yml":
+        - name: Copy script
+          ansible.builtin.copy:
+            src: <path-dello-script>/<nome-script>
+            dest: /home/vagrant/<nome-script> #la destinazione e' la home della VM
+            mode: '0755' #indica i privilegi di accesso
+        
+        - name: Copy config file
+          ansible.builtin.copy:
+            src: <path-del-file>/<nome-file>
+            dest: /home/vagrant/<nome-file>
+            mode: '0644'
+
+3.5 Installare piu' script insieme:
+    1) inserire in "playbook.yml":
+        - name: Copy file with owner and permissions
+          ansible.builtin.copy:
+            src: "<path-della-directory>/{{ item }}"
+            dest: /home/vagrant/
+            mode: '0755'
+          loop: 
+            - <nome-file-1>
+            - ...
+            - <nome-file-n>
+
+3.6 Modifica di un file:
+    1) inserire in "playbook.yml":
+        - name: Ensure passwd is backed up
+          ansible.builtin.lineinfile: #controlla che una particolare linea sia in un file
+            path: <path-del-file>
+            line: /etc/passwd
+
+3.7 Pianificazione periodica (analogo a crontab -e):
+    1) inserire in "playbook.yml":
+        - name: Schedule operation
+          ansible.builtin.cron:
+            name: "execute operation"
+            minute: "*/2" #nei minuti pari
+            weekday: "1-5"
+            month: "1-7, 9-12"
+            job: "<path-comando-da-eseguire>"
+
+3.8 Gestione di systemd:
+    1) inserire in "playbook.yml":
+        - name: Guarantee rsyslog is started
+          ansible.builtin.systemd:
+            state: started
+            name: rsyslog.service        
+
+3.9 Installazione di snmpd su agent:
+        - name: Installazione snmpd
+          become: yes
+          ansible.builtin.apt:
+            name: snmpd
+            state: latest
+            update_cache: yes
+
+3.10 Copia di snmpd.conf su agent:
+  - name: Copia di snmp.conf su agent
+    become: yes
+    ansible.builtin.copy:
+      src: /home/umberto/Scrivania/file_per_esame_LAS/file_config/snmpd.conf
+      dest: /etc/snmpd/
+      owner: root
+      group: root
+      mode: '0600'
+
+3.11 Installazione di snmp su manager:
+    - name: Installazione di snmp
+      become: yes
+      ansible.builtin.apt:
+        name: snmp
+        state: latest
+        update_cache: yes
+
+
+4. VARIE/SCRIPTING:
+
+4.1 Usare scp per trasferire da VM a host:
+    1) vagrant up nella directory della VM
+    2) vagrant ssh-config > ssh.conf per ottenere la configurazione per connettersi con ssh
+    3) creo il path di destinazione dell'host    
+    4) scp -F ssh.conf default:<path-file-sulla-vm> <path-file-su-host>
+    
+4.2 Script per raccogliere e archiviare i file da consegnare dalle varie macchine:
+    1) nella stessa directory, con nome maketar.sh
+    2) mi sposto nella directory con tutti i file necessari
+    3) invocare chmod +x maketar.sh
+    4) per eseguire ./maketar.sh
+
+4.3 Controllare il traffico tra due host:
+    1) usare tcpdump
+
+4.4 Il comando 'ss' mi da informazioni sulle socket aperte
+
+4.5 Per controllare se una stringa appartiene ad una lista di stringhe consentite:
+    [[ <stringa> =~ ^(<stringa-1>|<stringa-2>) ]] && <comando>
+    Se la stringa appartiene alla lista viene eseguito il comando concatenato,
+    altrimenti no.
+
+4.6 Per leggere in tempo reale una riga per volta le ultime righe di un file di log e automatizzare le operazioni:
+    tail -f <nome-file> | while read R ; do
+        <comandi>
+    done
+
+4.7 Per scrivere tutti gli input uno dopo l'altro:
+    "$@", che equivale a "$1" "$2" ... "$n"
+
+4.8 Per mostrare tutti i valori in un array: ${A[@]}
+    Per mostrare tutti gli indici validi: ${!A[@]}
+
+4.9 Per sapere se un processo e' in esecuzione uso 'ps', posso metterci un array di PID e mi dice quale e' ancora vivo
+
+4.10 Per creare comandi con le opzioni del tipo -<lettera> si usa getopts, per esempio:
+    while getopts "n:s:" OPTION ; do
+        case $OPTION in
+            n) <comandi>
+                ;;
+            s) <comandi>
+                ;;
+            ?) printf "Usage: ... "
+               exit 1
+                ;;
+        esac
+    done
+
+4.11 Per inserire l'esecuzione di uno script in crontab:
+        /usr/bin/crontab -l | grep -v "$THIS" > "$T"
+        echo "<periodicita'> $THIS" >> "$T"
+        /usr/bin/crontab "$T"
+        /bin/rm -f "$T"
+    con THIS che e' il path dello script nuovo
+    e T che e' un file temporaneo creato con $(mktemp)        
+     
+4.12 Lettura di un file linea per linea:
+        while read line; do
+            <comandi>
+        done < <nome-file>
+
+4.13 Per impostare l'esecuzione periodica di uno script:
+        1) invocare crontab -e
+        2) inserire la periodicita' e il path dello script, per esempio:
+            mm hh giorno-del-mese mese ggg-della-settimana <path-script>
+
+4.12 Per eseguire uno script nei minuti pari:
+        0-58/2
+
+4.13 Per eseguire uno script nei minuti dispari:
+        1-59/2
+
+4.14 Per spegnere una macchina con ssh in bash:
+        ssh "$IP" | shutdown -P
+
+4.15 Per aggiungere una entry a crontab da terminale:
+    (crontab -l 2>/dev/null; echo "*/5 * * * * /path/to/job -with args") | crontab -
+
+4.16 per monitorare il traffico tra due host con tcpdump:
+    tcpdump -i eth2 -nlp '((dst net 10.222.222.222.0/24 and dst port 2049) or (src net 10.222.222.0/24 and src port 2049))' | while read <formato> ; do 
+
+4.17 Per vedere il formato di tcpdump usare:
+    tcpdump -i wlp3s0 -nlp '(src net 192.168.1.247)'
+
+4.18 Per conoscere il numero di utenti attivi negli ultimi 20 minuti:
+    for i in {1..20} ; do last -p -${i}min ; done | awk '{ print $1 }' | sort -u
+
+
+5. SNMP:
+
+5.1 Comando SNMP per ottenere informazioni:
+        snmpget
+        si usa quando ho bisogno di vedere un solo valore, snmpwalk e' eccessivo in questo caso    
+
+5.2 Comando SNMP per settare un valore:
+        snmpset
+
+5.3 Comando SNMP per analizzare ricorsivamente il sottoalbero MIB:
+        snmpwalk
+
+5.4 Per modificare i setting di SNMP andare in /etc/snmp/snmpd.conf
+
+5.5 Per ottenere le info sui comandi comuni tra snmpget, snmpset, snmpwalk usare:
+        man snmpcmd
+
+5.6 Sul manager va fatta tutta l'installazione di SNMP, mentre per l'agent serve solo snmpd
+
+5.7 Per configurare snmp lato manager: /etc/snmp/snmp.conf
+
+5.8 Per configurare snmp lato agent: /etc/snmp/snmpd.conf
+
+5.9 Comando generico snmpwalk:
+        snmpwalk -v <versione> -c <nome-community>(di solito public) <indirizzo-IP> <nodo-da-cui-partire-per-vedere-managed-object>
+
+5.10 Per mostrare tutta la gerarchia:
+        snmpwalk -v 1 -c public -On 127.0.0.1 .1
+
+5.11 Con extend-sh in /etc/snmp/snmp.conf consente di far eseguire uno script e conoscerne l'esito:
+        extend-sh <etichetta> <comando/i-da-eseguire>
+
+5.12 Per inserire un comando custom da far eseguire da snmp:
+    1) andare in /etc/snmp/snmpd.conf
+    2) inserire una linea tipo:
+        extend-sh <nome-comando> <comandi>
+    3) poi per usarlo mettere nella snmpget:
+        NET-SNMP-EXTEND-MIB::nsExtendOutputFull.\"<nome-comando>\"
+
+
+6) LOGGING
+
+6.1 Definire la destinazione del logging verso un altro dispositivo della rete:
+    1) in /etc/rsyslog.d/<nome-file>.conf inserire:
+        local1.=notice /var/log/<nome-file-destinazione>
+
+6.2 Per scrivere sul log:
+    logger -n 10.10.10.254 -p local1.info -t parametri "$@" < /dev/null
+
+6.3 Per inserire una nuova facility di log:
+    echo "<facility>.<priority> <path-file-di-log>" > /etc/rsyslog.d/logconfig.conf
+    Per esempio:    
+        echo "local4.=info /var/log/<nome-file-per-logging>" > /etc/rsyslog.d/mylog.conf
+
+6.4 Per disattivare la facility:
+    mv /etc/rsyslog.d/mylog.conf /etc/rsyslog.d/mylog.off    
+
+
+7) LDAP
+
+7.1 Ricerca di entry dato ou e dc:
+    ldapsearch −x −LLL −D cn=admin,dc=labammsis −b ou=People,dc=labammsis -s one −w gennaio.marzo −H ldapi:///
+
+7.2 Eliminare tutte le entry dato ou e dc:
+    ldapsearch −x −LLL −D cn=admin,dc=labammsis −b ou=People,dc=labammsis -s one −w gennaio.marzo −H ldapi:/// |
+egrep ^dn: | ldapdelete -x -D cn=admin,dc=labammsis −b dc=labammsis −w gennaio.marzo −H ldapi:///
+
+7.3 Aggiungere entry alla directory ldap:
+    ldapadd -x -D cn=admin,dc=labammsis −b dc=labammsis −w gennaio.marzo −H ldapi:///
+
+
