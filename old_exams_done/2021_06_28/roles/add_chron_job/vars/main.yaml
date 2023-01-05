@@ -1,0 +1,8 @@
+jobs:
+  - name: 'job count.sh'
+    job: /usr/bin/count.sh
+    minute: '*/20'
+    hour: '8-19'
+    month: '*'
+    dom: '*'
+    dow: '1-5'
