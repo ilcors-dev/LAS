@@ -1,0 +1,9 @@
+[Service]
+Type=simple
+Description=Run count.sh in background to log ssh connections coming from clients
+ExecStart=/home/count.sh
+KillMode=process
+Restart=on-failure
+
+[Install]
+WantedBy=basic.target

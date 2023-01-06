@@ -1,0 +1,28 @@
+- hosts: all
+  roles:
+    - common
+- hosts: router
+  roles:
+    - routers_1_setup
+    - snmp_manager
+    - add_chron_job
+    - snmp_agent_router
+- hosts:
+    - servermain
+    - server1
+    - server2
+  roles:
+    - servers
+    - syslog_setup
+    - add_systemd_unit
+    - snmp_agent_server
+- hosts: client
+  roles:
+    - clients
+    - snmp_manager
+  #   - name: 'create las user'
+  #     ansible.builtin.user:
+  #       name: las
+  #       password: "{{ 'las' | password_hash('sha512') }}"
+  #       state: present
+  #       shell: /bin/bash

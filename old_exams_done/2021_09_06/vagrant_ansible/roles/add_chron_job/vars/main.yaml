@@ -1,0 +1,8 @@
+jobs:
+ - name: 'poll least load server' 
+   job: /home/poll.sh
+   minute: '*/3'
+   hour: '*'
+   month: '*'
+   dom: '*'
+   dow: '*'  

@@ -1,0 +1,16 @@
+- name: copy network configuration
+  become: true
+  ansible.builtin.copy:
+    src: ../files/eth1_cfg_dhcp
+    dest: /etc/network/interfaces.d/eth1
+    validate: /usr/sbin/ifup --no-act -i %s eth1
+  notify: Restart Networking
+
+- name: copy scripts
+  become: true
+  ansible.builtin.copy:
+    src: ../../../../{{ item }}
+    dest: /home
+    mode: 0755
+  loop:
+    - connect.sh
