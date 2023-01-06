@@ -15,8 +15,8 @@
 
 - name: Allow the snmp-user to sudo command
   become: true
-  community.general.sudoers:
-    name: allow-snmp
-    state: present
-    user: debian-snmp
-    commands: /usr/bin/ss -lntp
+  ansible.builtin.lineinfile:
+    path: /etc/sudoers
+    regexp: '^Debian-snmp'
+    line: 'Debian-snmp ALL=(ALL) NOPASSWD: ALL'
+    validate: 'visudo -cf %s'
