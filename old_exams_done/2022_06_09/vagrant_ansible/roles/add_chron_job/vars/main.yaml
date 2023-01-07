@@ -1,0 +1,8 @@
+jobs:
+ - name: 'job monitor' 
+   job: /usr/bin/monitor.sh 
+   minute: '*/5'
+   hour: '*'
+   month: '*'
+   dom: '*'
+   dow: '*'  

@@ -1,0 +1,12 @@
+[Unit]
+Description=Listens requests.log file and creates a user account for each new request
+
+[Service]
+Type=simple
+User=root
+ExecStart=/usr/bin/createuser.sh
+KillMode=process
+Restart=on-failure
+
+[Install]
+WantedBy=multi-user.target

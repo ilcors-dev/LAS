@@ -1,0 +1,17 @@
+- hosts: all
+  roles:
+    - common
+- hosts: Manager
+  roles:
+    - manager
+    - LDAP_server_installation
+    - LDAP_server_users_setup
+    - syslog_setup
+    - add_systemd_unit
+    - snmp_manager
+    - add_chron_job
+- hosts: Workstation
+  roles:
+    - workstation
+    - LDAP_login_setup
+    - snmp_agent

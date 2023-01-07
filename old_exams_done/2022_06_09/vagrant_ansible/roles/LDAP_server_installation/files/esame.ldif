@@ -1,0 +1,4 @@
+dn: ou=esame,dc=labammsis
+objectClass: organizationalunit
+ou: esame
+description: system users
