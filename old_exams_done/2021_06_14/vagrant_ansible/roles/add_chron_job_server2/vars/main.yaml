@@ -1,0 +1,8 @@
+jobs:
+ - name: 'job failback server 2 every even minute' 
+   job: /home/failback.sh
+   minute: '0-59/2'
+   hour: '*'
+   month: '*'
+   dom: '*'
+   dow: '*'  

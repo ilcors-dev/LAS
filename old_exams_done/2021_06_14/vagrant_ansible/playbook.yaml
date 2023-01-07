@@ -1,0 +1,27 @@
+- hosts: all
+  roles:
+    - common
+- hosts: router
+  roles:
+    - routers_1_setup
+    - syslog_setup
+    - snmp_agent
+    - LDAP_server_installation
+    - LDAP_server_users_setup
+- hosts: server1,server2
+  roles:
+    - servers
+    - ssh_keygen
+    - snmp_manager
+    - LDAP_server_installation
+    - LDAP_server_users_setup
+- hosts: server1
+  roles:
+    - add_chron_job_server1
+- hosts: server2
+  roles:
+    - add_chron_job_server2
+- hosts: client
+  roles:
+    - clients
+    - LDAP_login_setup
